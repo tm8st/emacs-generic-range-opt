@@ -147,6 +147,7 @@
 (generic-range-opt "match-paren-1" nil nil '(lambda () (gro-match-paren "(" ")" 1)))
 (generic-range-opt "string-1" nil nil '(lambda () (gro-match-paren "\"" "\"" 0)))
 (generic-range-opt "char-1" nil nil '(lambda () (gro-match-paren "'" "'" 0)))
+(generic-range-opt "cppif" nil nil '(lambda () (gro-match-paren "#if" "#endif" 1)))
 
 (when (require 'jaunte nil t)
   (generic-range-opt "jaunte-prev" nil nil '(lambda () (jaunte) (backward-char)))
@@ -178,7 +179,7 @@
         (ret-pos nil)
         )
     (while (eq bExit nil)
-      (if (numberp (re-search-backward (concat "[" paren close-paren "]") nil t))
+      (if (numberp (re-search-backward (concat paren "\\|" close-paren) nil t))
           (cond ((looking-at paren) (if (<= depth 0)
                                         (progn
                                           (setq ret-pos (point))
@@ -200,15 +201,28 @@
             (ret-pos nil)
             )
         (while (eq bExit nil)
-          (if (numberp (re-search-forward (concat "[" paren close-paren "]") nil t))
+          (if (numberp (re-search-forward (concat paren "\\|" close-paren) nil t))
               (cond ((looking-back close-paren) (if (<= depth 0)
-                                                  (progn 
-                                                    (setq ret-pos (point))
-                                                    (setq bExit t))
-                                                (setq depth (- depth 1))))
+                                                    (progn 
+                                                      (setq ret-pos (point))
+                                                      (setq bExit t))
+                                                  (setq depth (- depth 1))))
                     ((looking-back paren) (setq depth (+ depth 1)))
                     (t nil))
             (setq bExit t)))
         ret-pos))))
+
+(defun gro-paren-search-barkward (begin end)
+  (interactive)
+  (gro-paren-search-backward-inner begin end 0)
+  )
+
+(defun gro-paren-search-forward (begin end)
+  (interactive)
+  (let ((b))
+    (save-excursion
+      (setq b (gro-paren-search-backward-inner begin end 0)))
+    (when (numberp b)
+      (gro-paren-search-forward-inner begin end 0 b))))
 
 (provide 'generic-range-opt)
