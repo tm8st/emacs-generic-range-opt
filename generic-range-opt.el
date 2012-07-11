@@ -71,40 +71,46 @@
   (interactive)
   (save-excursion
     (if mark-active
-	(funcall range-opt-runction (point) (mark))
+				(funcall range-opt-runction (point) (mark))
       (let* ((start-point (point))
-	     (s (cond
-		 (begin-move-func (funcall begin-move-func) (point))
-		 (t start-point)))
-	     (e (cond
-		 (end-move-func (goto-char start-point) (funcall end-move-func) (point))
-		 (t start-point))))
-	(when mark-func
-	  (goto-char start-point)
-	  (funcall mark-func)
-	  (setq e (point))
-	  (setq s (mark)))
-	(funcall range-opt-runction s e)))))
+						 (s (cond
+								 (begin-move-func (funcall begin-move-func) (point))
+								 (t start-point)))
+						 (e (cond
+								 (end-move-func (goto-char start-point) (funcall end-move-func) (point))
+								 (t start-point))))
+				(when mark-func
+					(goto-char start-point)
+					(funcall mark-func)
+					(setq e (point))
+					(setq s (mark)))
+				(funcall range-opt-runction s e)))))
 
 (defun generic-range-opt-mark-base-function (begin-move-func &optional end-move-func &optional mark-func)
   (interactive)
   (let* ((start-point (point))
-	 (s (cond
-	     (begin-move-func (funcall begin-move-func) (point))
-	     (t start-point)))
-	 (e (cond
-	     (end-move-func (goto-char start-point) (funcall end-move-func) (point))
-	     (t start-point))))
+         (prev-mark (mark))
+				 (s (cond
+						 (begin-move-func (funcall begin-move-func) (point))
+						 (t start-point)))
+				 (e (cond
+						 (end-move-func (goto-char start-point) (funcall end-move-func) (point))
+						 (t start-point))))
     (when mark-func
       (goto-char start-point)
       (funcall mark-func)
       (setq e (point))
       (setq s (mark)))
-    (push-mark e t transient-mark-mode)
-    ;; (push-mark s t transient-mark-mode)
-    ;; ))
-    (goto-char s)))
-
+    ;; IF worked mark function, affect to current point and mark.
+    (and (numberp (mark))
+         (or 
+          (/= (mark) prev-mark)
+          (/= s start-point)
+          (progn 
+            (push-mark e t transient-mark-mode)
+            (goto-char s)
+            )))))
+  
 (defmacro generic-range-opt (name begin end &optional mark)
   "generate range operations. mark, delete, kill"
   (fset (intern (concat "gro-mark-" name))
@@ -135,6 +141,13 @@
 (generic-range-opt "next-line" nil nil '(lambda () (next-line) (mark-line)))
 (generic-range-opt "goto-line" nil '(lambda () (goto-line (read-number "line number?:")) (end-of-line)))
 
+(generic-range-opt "match-brace" nil nil '(lambda () (gro-match-paren "{" "}" 0)))
+(generic-range-opt "match-paren" nil nil '(lambda () (gro-match-paren "(" ")" 0)))
+(generic-range-opt "match-brace-1" nil nil '(lambda () (gro-match-paren "{" "}" 1)))
+(generic-range-opt "match-paren-1" nil nil '(lambda () (gro-match-paren "(" ")" 1)))
+(generic-range-opt "string-1" nil nil '(lambda () (gro-match-paren "\"" "\"" 0)))
+(generic-range-opt "char-1" nil nil '(lambda () (gro-match-paren "'" "'" 0)))
+
 (when (require 'jaunte nil t)
   (generic-range-opt "jaunte-prev" nil nil '(lambda () (jaunte) (backward-char)))
   (generic-range-opt "between-jaunte" 'jaunte 'jaunte))
@@ -142,5 +155,60 @@
 (when (require 'yafastnav nil t)
   (generic-range-opt "yafastnav-prev" nil nil '(lambda () (yafastnav-jump-to-forward) (backward-char)))
   (generic-range-opt "between-yafastnav" 'yafastnav-jump-to-backward 'yafastnav-jump-to-forward))
+
+(defun gro-match-paren (paren close-paren offset)
+  ""
+  (interactive)
+  (let ((b) (e))
+    (save-excursion
+      (setq b (gro-paren-search-backward-inner paren close-paren 0)))
+    (save-excursion
+      (setq e (gro-paren-search-forward-inner paren close-paren 0 b)))
+    (when (and (numberp b)
+               (numberp e))
+      (progn
+        (goto-char (- (+ e offset) 1))
+        (push-mark (+ 1 (- b offset)) t t)
+        ))))
+
+(defun gro-paren-search-backward-inner (paren close-paren depth)
+  "search backward open paren position, return position or nil."
+  (let ((bExit nil)
+        (depth 0)
+        (ret-pos nil)
+        )
+    (while (eq bExit nil)
+      (if (numberp (re-search-backward (concat "[" paren close-paren "]") nil t))
+          (cond ((looking-at paren) (if (<= depth 0)
+                                        (progn
+                                          (setq ret-pos (point))
+                                          (setq bExit t))
+                                      (setq depth (- depth 1))))
+                ((looking-at close-paren) (setq depth (+ depth 1)))
+                (t nil))
+        (setq bExit t)))
+    ret-pos))
+
+(defun gro-paren-search-forward-inner (paren close-paren depth start)
+  "search forward close paren position, return position or nil."
+  (if (eq start nil)
+      nil
+    (progn
+      (goto-char (+ 1 start))
+      (let ((bExit nil)
+            (depth 0)
+            (ret-pos nil)
+            )
+        (while (eq bExit nil)
+          (if (numberp (re-search-forward (concat "[" paren close-paren "]") nil t))
+              (cond ((looking-back close-paren) (if (<= depth 0)
+                                                  (progn 
+                                                    (setq ret-pos (point))
+                                                    (setq bExit t))
+                                                (setq depth (- depth 1))))
+                    ((looking-back paren) (setq depth (+ depth 1)))
+                    (t nil))
+            (setq bExit t)))
+        ret-pos))))
 
 (provide 'generic-range-opt)
