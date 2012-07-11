@@ -1,9 +1,9 @@
 ;;; generic-range-opt.el --- generate range operations.
 
-;; Copyright (C) 2010 tm8st
+;; Copyright (C) 2010, 2012 tm8st
 
 ;; Author: tm8st <tm8st@hotmail.co.jp>
-(defconst generic-range-opt-version "0.1")
+(defconst generic-range-opt-version "0.2")
 ;; Keywords: convenience, delete, kill, copy, mark
 
 ;; This file is free software; you can redistribute it and/or modify
